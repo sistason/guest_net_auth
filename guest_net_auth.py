@@ -2,7 +2,7 @@
 # GPLv3 by Kai Sisterhenn <sistason@sistason.de> github.com/sistason
 
 from sys import argv
-from os import listdir
+from os import listdir, path
 import requests
 import logging
 
@@ -21,6 +21,7 @@ class TubitLogin():
     success = False
     tos_site = None
     login_site = None
+    CERT = path.join(path.dirname(path.abspath(__file__)), 'ise-01.tubit.tu-berlin.de.pem')
 
     def __init__(self, usr, pw):
         self.usr, self.pw = usr, pw
@@ -36,17 +37,21 @@ class TubitLogin():
         self.query = url.query
         
         try:
-            self.login_site = requests.get(url_and_session.url, headers=self.get_headers(url_and_session.url))
+            self.login_site = requests.get(url_and_session.url, headers=self.get_headers(url_and_session.url), verify=self.CERT)
         except requests.exceptions.SSLError:
-            certs = [i for i in listdir('.') if i.endswith('.pem') or i.endswith('.crt')]
-            if certs:
-                try:
-                    requests.pyopenssl.ssl.get_server_certificate((url.hostname, url.port), cert=certs[0])
-                except requests.exceptions.SSLError:
-                    logging.error('Error! SSL Certificate is invalid for "{0}"!'.format(self.base))
-            else:
+            certs = [i for i in listdir(path.dirname(path.abspath(__file__))) if i.endswith('.pem') or i.endswith('.crt')]
+            if not certs:
+                certs = [i for i in listdir(path.dirname(path.abspath(__file__))) if path.isfile(i) and open(i).readline().startswith('-----BEGIN CERTIFICATE-----')]
+                if not certs:
                     logging.error('Error! SSL Certificate is missing for "{0}"!'.format(self.base))
-            return
+                    return
+            try:
+                requests.pyopenssl.ssl.get_server_certificate((url.hostname, url.port), ca_certs=certs[0])
+                self.CERT = certs[0]
+                self.login_site = requests.get(url_and_session.url, headers=self.get_headers(url_and_session.url), verify=self.CERT)
+            except requests.exceptions.SSLError:
+                logging.error('Error! SSL Certificate is invalid for "{0}"!'.format(self.base))
+                return
 
     def work(self):
         self.login()
@@ -73,7 +78,7 @@ class TubitLogin():
         url = self.base + '/portal/' + self.loginsubmitpath + '&' + self.query
         data={'user.username':self.usr, 'user.password':self.pw, 'Button':'Login', 'name':'portal'}
         headers=self.get_headers(self.base + '/' + self.loginpath)
-        tos_site = requests.post(url, params=data, headers=headers)
+        tos_site = requests.post(url, params=data, headers=headers, verify=self.CERT)
 
         all_ = tos_site.text
         if 'Accept' in all_[all_.find('<form',1): all_.find('</html>')]:
@@ -126,7 +131,7 @@ class TubitLogin():
         headers = self.get_headers(self.base + '/' + self.loginsubmitpath)
         cookies = self.login_site.cookies
         cookies['portalSessionId'] = session_id #set by js, so needed here
-        coa_site = requests.post(url, params=data, headers=headers, cookies=cookies)
+        coa_site = requests.post(url, params=data, headers=headers, cookies=cookies, verify=self.CERT)
         if coa_site.status_code == 200:
             logging.info('Successfully accepted ToS')
 
@@ -134,7 +139,7 @@ class TubitLogin():
             data = {'delayToCoA':'0', 'coaType': 'REAUTH', 'waitForCoA': 'true', 'portalSessionId':session_id, 'token':token}
             headers = self.headers
             headers['Accept'] = '*/*'
-            ret = requests.post(url, params=data, headers=headers)
+            ret = requests.post(url, params=data, headers=headers, verify=self.CERT)
             if ret.status_code == 200:
                 logging.info('Success!')
                 self.success = True
