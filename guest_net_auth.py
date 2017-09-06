@@ -26,7 +26,7 @@ class TubitLogin():
     def __init__(self, usr, pw):
         self.usr, self.pw = usr, pw
         url_and_session = requests.get('http://www.heise.de', verify=False)
-        if url_and_session.url.startswith("http://www.heise.de"):
+        if url_and_session.url.endswith("www.heise.de/"):
             logging.info('Already logged in')
             self.success = True
             return
@@ -38,7 +38,7 @@ class TubitLogin():
         
         try:
             self.login_site = requests.get(url_and_session.url, headers=self.get_headers(url_and_session.url), verify=self.CERT)
-        except requests.exceptions.SSLError:
+        except requests.exceptions.SSLError as e:
             certs = [i for i in listdir(path.dirname(path.abspath(__file__))) if i.endswith('.pem') or i.endswith('.crt')]
             if not certs:
                 certs = [i for i in listdir(path.dirname(path.abspath(__file__))) if path.isfile(i) and open(i).readline().startswith('-----BEGIN CERTIFICATE-----')]
@@ -46,8 +46,9 @@ class TubitLogin():
                     logging.error('Error! SSL Certificate is missing for "{0}"!'.format(self.base))
                     return
             try:
-                requests.pyopenssl.ssl.get_server_certificate((url.hostname, url.port), ca_certs=certs[0])
-                self.CERT = certs[0]
+                cert_ = path.join(path.dirname(path.abspath(__file__)), certs[0])
+                requests.pyopenssl.ssl.get_server_certificate((url.hostname, url.port), ca_certs=cert_)
+                self.CERT = cert_
                 self.login_site = requests.get(url_and_session.url, headers=self.get_headers(url_and_session.url), verify=self.CERT)
             except requests.exceptions.SSLError:
                 logging.error('Error! SSL Certificate is invalid for "{0}"!'.format(self.base))
