@@ -159,23 +159,33 @@ class TubitLogin():
 
 
 if __name__ == '__main__':
-    if len(argv) == 1:
+    from os import path, access, R_OK, W_OK
+    def argcheck_file(string):
+        if access(path.abspath(path.dirname(string)), W_OK) or (path.isfile(string) and
+                                                                access(string, W_OK) and
+                                                                access(string, R_OK)):
+            return path.abspath(string)
+        raise argparse.ArgumentTypeError('{} is no file or isn\'t writeable'.format(string))
+
+    import argparse
+    argparser = argparse.ArgumentParser(description="Automatic login into TUB-guest net.")
+    argparser.add_argument('auth_file', type=argcheck_file, nargs='?',
+                           help='Supply a file which stores the authentication information')
+    argparser.add_argument('--quiet', '-q', type="store_true", help="don\t output anything")
+
+    pd = vars(argparser.parse_args())
+    if pd['quiet']:
+        logging.basicConfig(level=logging.ERROR)
+
+    if pd['auth_file']:
+        with open(pd['auth_file']) as f:
+            usr, pw = f.read().split('\n')[:2]
+    else:
+        logging.basicConfig(level=logging.DEBUG)
+
         import getpass
         usr = raw_input('Tubit-Username: ')
         pw = getpass.getpass('Tubit-Pw:  ')
-        logging.basicConfig(level=logging.DEBUG)
-    else:
-        with open(argv[1]) as f:
-            usr, pw = f.read().split('\n')[:2]
-        # yeah yeah, but project too small for argparse...
-        if len(argv) > 2:
-            if argv[2] == '-q':
-                logging.basicConfig(level=logging.ERROR)
-            elif argv[2] == '-v':
-                logging.basicConfig(level=logging.DEBUG)
-        else:
-            logging.basicConfig(level=logging.INFO)
-
 
     login = TubitLogin(usr, pw)
     if not login.success:    
