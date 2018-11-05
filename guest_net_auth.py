@@ -26,7 +26,7 @@ class TubitLogin():
     def __init__(self, usr, pw):
         self.usr, self.pw = usr, pw
         url_and_session = requests.get('http://www.heise.de', verify=False)
-        if url_and_session.url.endswith("www.heise.de/"):
+        if url_and_session.url.endswith("www.heise.de/") and not "redirect" in url_and_session.url:
             logging.info('Already logged in')
             self.success = True
             return
@@ -163,6 +163,7 @@ if __name__ == '__main__':
         import getpass
         usr = raw_input('Tubit-Username: ')
         pw = getpass.getpass('Tubit-Pw:  ')
+        logging.basicConfig(level=logging.DEBUG)
     else:
         with open(argv[1]) as f:
             usr, pw = f.read().split('\n')[:2]
